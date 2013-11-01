@@ -18,8 +18,20 @@
   <script src='lib/highlight.7.3.pack.js' type='text/javascript'></script>
   <script type="text/javascript">
     $(function () {
+    	var version = "v0";
+    	var docsSuffix = "/api-docs";
+    	var apiUrl = window.location.href;
+    	var pos = apiUrl.indexOf("#", 0);
+    	if (pos !== -1) {
+    		 apiUrl = apiUrl.substring(0, pos);
+    	}
+    	if (apiUrl.charAt(apiUrl.length - 1) === "/") {
+    		apiUrl += version + docsSuffix;
+    	} else {
+    		apiUrl += "/" + version + docsSuffix;
+    	}
       window.swaggerUi = new SwaggerUi({
-      url: "http://petstore.swagger.wordnik.com/api/api-docs",
+      url: apiUrl,
       dom_id: "swagger-ui-container",
       supportedSubmitMethods: ['get', 'post', 'put', 'delete'],
       onComplete: function(swaggerApi, swaggerUi){
