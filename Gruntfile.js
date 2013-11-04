@@ -22,7 +22,7 @@ module.exports = function (grunt) {
         compress: {
           main: {
             options: {
-              mode: 'tgz',
+              mode: 'zip',
               archive: 'output/'+pkg.name+'-'+pkg.version+'.jar'
             },
             files: [
