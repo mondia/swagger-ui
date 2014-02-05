@@ -61,6 +61,6 @@ module.exports = function (grunt) {
       run('npm run-script build');
   });
 
-  grunt.registerTask('build', ['clean', 'buildSwagger', 'compress', 'release']);
+  grunt.registerTask('build', ['clean', 'buildSwagger', 'compress', 'publish']);
 
 };
