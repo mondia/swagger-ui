@@ -37,20 +37,20 @@ module.exports = function (grunt) {
     
     grunt.registerTask('publish', function () {
 
+        var auth = 'autodeploy:biquaif7wi';
+        var groupId = 'com/mondiamedia/services/'
+
         if (pkg.version.indexOf('SNAPSHOT') === -1) {
             grunt.log.ok('Release ' + pkg.version);
-            
-            var auth = 'autodeploy:biquaif7wi';
+   
             var nexus = 'http://nexus.hh.arvm.de:8086/nexus/content/repositories/releases/'
-            var groupId = 'com/mondiamedia/services/'
             run('curl -T output/' + file + ' -u ' + auth + ' '+ nexus + groupId + pkg.name + '/' + pkg.version + '/' + file);
     
         } else {
             grunt.log.ok('Snapshot-Release ' + pkg.version);
 
-            var auth = 'autodeploy:biquaif7wi';
+            
             var nexus = 'http://nexus.hh.arvm.de:8086/nexus/content/repositories/snapshots/'
-            var groupId = 'com/mondiamedia/services/'
             run('curl -T output/' + file + ' -u ' + auth + ' '+ nexus + groupId + pkg.name + '/' + pkg.version + '/' + file);
         }
 
