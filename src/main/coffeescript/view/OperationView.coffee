@@ -214,13 +214,15 @@ class OperationView extends Backbone.View
     else if contentType.indexOf("text/html") == 0
       code = $('<code />').html(content)
       pre = $('<pre class="xml" />').append(code)
+    else if contentType.indexOf("image/") == 0
+      pre = $('<img>').attr('src',data.request.url)
     else
       # don't know what to render!
       code = $('<code />').text(content)
       pre = $('<pre class="json" />').append(code)
 
     response_body = pre
-    $(".request_url").html "<pre>" + data.request.url + "</pre>"
+    $(".request_url", $(@el)).html "<pre>" + data.request.url + "</pre>"
     $(".response_code", $(@el)).html "<pre>" + data.status + "</pre>"
     $(".response_body", $(@el)).html response_body
     $(".response_headers", $(@el)).html "<pre>" + JSON.stringify(data.getHeaders()) + "</pre>"
