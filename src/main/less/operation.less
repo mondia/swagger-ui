@@ -73,6 +73,11 @@
                 }
             }
         }
+        ul.options {
+            li.access {
+                color: black;
+            }
+        }
     }
     div.content {
         border-top: none;
@@ -154,6 +159,9 @@
     li.operation.patch {
         .operationType('Patch');
     }
+    li.operation.options {
+        .operationType('Options');
+    }
 
     li.operation {
         &.get, &.post, &.head, &.put, &.patch, &.delete {
@@ -172,11 +180,13 @@
         a:hover, a:active, a.active {
             text-decoration: underline;
         }       
-        &:first-child, &.first {
-            padding-left: 0;
-        }
-        &:first-child, &.first {
+        &:first-child, 
+        &.first {
             padding-left: 0;
         }
     }
+    &:first-child, &.first {
+        padding-left: 0;
+    }
+    
 }

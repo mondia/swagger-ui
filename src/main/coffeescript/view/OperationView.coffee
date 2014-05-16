@@ -1,16 +1,59 @@
 class OperationView extends Backbone.View
+  invocationUrl: null
+
   events: {
-  'submit .sandbox'         : 'submitOperation'
-  'click .submit'           : 'submitOperation'
-  'click .response_hider'   : 'hideResponse'
-  'click .toggleOperation'  : 'toggleOperationContent'
+    'submit .sandbox'         : 'submitOperation'
+    'click .submit'           : 'submitOperation'
+    'click .response_hider'   : 'hideResponse'
+    'click .toggleOperation'  : 'toggleOperationContent'
+    'mouseenter .api-ic'      : 'mouseEnter'
+    'mouseout .api-ic'        : 'mouseExit'
   }
 
   initialize: ->
 
+  mouseEnter: (e) ->
+    elem = $(e.currentTarget.parentNode).find('#api_information_panel')
+    x = event.pageX
+    y = event.pageY
+    scX = $(window).scrollLeft()
+    scY = $(window).scrollTop()
+    scMaxX = scX + $(window).width()
+    scMaxY = scY + $(window).height()
+    wd = elem.width()
+    hgh = elem.height()
+
+    if (x + wd > scMaxX)
+      x = scMaxX - wd
+    if (x < scX)
+      x = scX
+    if (y + hgh > scMaxY)
+      y = scMaxY - hgh
+    if (y < scY)
+      y = scY
+    pos = {}
+    pos.top = y
+    pos.left = x
+    elem.css(pos)
+    $(e.currentTarget.parentNode).find('#api_information_panel').show()
+
+  mouseExit: (e) ->
+    $(e.currentTarget.parentNode).find('#api_information_panel').hide()
+
   render: ->
     isMethodSubmissionSupported = true #jQuery.inArray(@model.method, @model.supportedSubmitMethods) >= 0
     @model.isReadOnly = true unless isMethodSubmissionSupported
+
+    @model.oauth = null
+    if @model.authorizations
+      for k, v of @model.authorizations
+        if k == "oauth2"
+          if @model.oauth == null
+            @model.oauth = {}
+          if @model.oauth.scopes is undefined
+            @model.oauth.scopes = []
+          for o in v
+            @model.oauth.scopes.push o
 
     $(@el).html(Handlebars.templates.operation(@model))
 
@@ -35,7 +78,7 @@ class OperationView extends Backbone.View
       type = param.type || param.dataType
       if type.toLowerCase() == 'file'
         if !contentTypeModel.consumes
-          console.log "set content type "
+          log "set content type "
           contentTypeModel.consumes = 'multipart/form-data'
 
     responseContentTypeView = new ResponseContentTypeView({model: contentTypeModel})
@@ -77,13 +120,14 @@ class OperationView extends Backbone.View
     if error_free
       map = {}
       opts = {parent: @}
-      #for o in form.serializeArray()
-        #if(o.value? && jQuery.trim(o.value).length > 0)
-          #map[o.name] = o.value
+
+      isFileUpload = false
 
       for o in form.find("input")
         if(o.value? && jQuery.trim(o.value).length > 0)
           map[o.name] = o.value
+        if o.type is "file"
+          isFileUpload = true
 
       for o in form.find("textarea")
         if(o.value? && jQuery.trim(o.value).length > 0)
@@ -98,12 +142,99 @@ class OperationView extends Backbone.View
       opts.requestContentType = $("div select[name=parameterContentType]", $(@el)).val()
 
       $(".response_throbber", $(@el)).show()
-
-      @model.do(map, opts, @showCompleteStatus, @showErrorStatus, @)
+      if isFileUpload
+        @handleFileUpload map, form
+      else
+        @model.do(map, opts, @showCompleteStatus, @showErrorStatus, @)
 
   success: (response, parent) ->
     parent.showCompleteStatus response
-  
+
+  handleFileUpload: (map, form) ->
+    for o in form.serializeArray()
+      if(o.value? && jQuery.trim(o.value).length > 0)
+        map[o.name] = o.value
+
+    # requires HTML5 compatible browser
+    bodyParam = new FormData()
+    params = 0
+
+    # add params
+    for param in @model.parameters
+      if param.paramType is 'form'
+        if map[param.name] != undefined
+            bodyParam.append(param.name, map[param.name])
+
+    # headers in operation
+    headerParams = {}
+    for param in @model.parameters
+      if param.paramType is 'header'
+        headerParams[param.name] = map[param.name]
+
+    log headerParams
+
+    # add files
+    for el in form.find('input[type~="file"]')
+      if typeof el.files[0] isnt 'undefined'
+        bodyParam.append($(el).attr('name'), el.files[0])
+        params += 1
+
+    log(bodyParam)
+
+    @invocationUrl = 
+      if @model.supportHeaderParams()
+        headerParams = @model.getHeaderParams(map)
+        @model.urlify(map, false)
+      else
+        @model.urlify(map, true)
+
+    $(".request_url", $(@el)).html "<pre>" + @invocationUrl + "</pre>"
+
+    obj = 
+      type: @model.method
+      url: @invocationUrl
+      headers: headerParams
+      data: bodyParam
+      dataType: 'json'
+      contentType: false
+      processData: false
+      error: (data, textStatus, error) =>
+        @showErrorStatus(@wrap(data), @)
+      success: (data) =>
+        @showResponse(data, @)
+      complete: (data) =>
+        @showCompleteStatus(@wrap(data), @)
+
+    # apply authorizations
+    if window.authorizations
+      window.authorizations.apply obj
+
+    if params is 0
+      obj.data.append("fake", "true");
+
+    jQuery.ajax(obj)
+    false
+    # end of file-upload nastiness
+
+  # wraps a jquery response as a shred response
+
+  wrap: (data) ->
+    headers = {}
+    headerArray = data.getAllResponseHeaders().split("\r")
+    for i in headerArray
+      h = i.split(':')
+      if (h[0] != undefined && h[1] != undefined)
+        headers[h[0].trim()] = h[1].trim()
+
+    o = {}
+    o.content = {}
+    o.content.data = data.responseText
+    o.headers = headers
+    o.request = {}
+    o.request.url = @invocationUrl
+    o.status = data.status
+    o
+
   getSelectedValue: (select) ->
     if !select.multiple 
       select.value
@@ -195,42 +326,47 @@ class OperationView extends Backbone.View
     
 
   # puts the response data in UI
-  showStatus: (data) ->
-    content = data.content.data
-    headers = data.getHeaders()
+  showStatus: (response) ->
+    if response.content is undefined
+      content = response.data
+      url = response.url
+    else
+      content = response.content.data
+      url = response.request.url
+    headers = response.headers
 
     # if server is nice, and sends content-type back, we can use it
-    contentType = headers["Content-Type"]
+    contentType = if headers && headers["Content-Type"] then headers["Content-Type"].split(";")[0].trim() else null
 
-    if content == undefined
+    if !content
       code = $('<code />').text("no content")
       pre = $('<pre class="json" />').append(code)
-    else if contentType.indexOf("application/json") == 0 || contentType.indexOf("application/hal+json") == 0
-      code = $('<code />').text(JSON.stringify(JSON.parse(content), null, 2))
+    else if contentType is "application/json" || /\+json$/.test(contentType)
+      code = $('<code />').text(JSON.stringify(JSON.parse(content), null, "  "))
       pre = $('<pre class="json" />').append(code)
-    else if contentType.indexOf("application/xml") == 0
+    else if contentType is "application/xml" || /\+xml$/.test(contentType)
       code = $('<code />').text(@formatXml(content))
       pre = $('<pre class="xml" />').append(code)
-    else if contentType.indexOf("text/html") == 0
+    else if contentType is "text/html"
       code = $('<code />').html(content)
       pre = $('<pre class="xml" />').append(code)
-    else if contentType.indexOf("image/") == 0
-      pre = $('<img>').attr('src',data.request.url)
+    else if /^image\//.test(contentType)
+      pre = $('<img>').attr('src',url)
     else
       # don't know what to render!
       code = $('<code />').text(content)
       pre = $('<pre class="json" />').append(code)
 
     response_body = pre
-    $(".request_url", $(@el)).html "<pre>" + data.request.url + "</pre>"
-    $(".response_code", $(@el)).html "<pre>" + data.status + "</pre>"
+    $(".request_url", $(@el)).html "<pre>" + url + "</pre>"
+    $(".response_code", $(@el)).html "<pre>" + response.status + "</pre>"
     $(".response_body", $(@el)).html response_body
-    $(".response_headers", $(@el)).html "<pre>" + JSON.stringify(data.getHeaders()) + "</pre>"
+    $(".response_headers", $(@el)).html "<pre>" + JSON.stringify(response.headers, null, "  ").replace(/\n/g, "<br>") + "</pre>"
     $(".response", $(@el)).slideDown()
     $(".response_hider", $(@el)).show()
     $(".response_throbber", $(@el)).hide()
     hljs.highlightBlock($('.response_body', $(@el))[0])
 
   toggleOperationContent: ->
-    elem = $('#' + Docs.escapeResourceName(@model.resourceName) + "_" + @model.nickname + "_" + @model.method + "_" + @model.number + "_content")
+    elem = $('#' + Docs.escapeResourceName(@model.parentId) + "_" + @model.nickname + "_content")
     if elem.is(':visible') then Docs.collapseOperation(elem) else Docs.expandOperation(elem)
