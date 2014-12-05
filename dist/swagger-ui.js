@@ -1,5 +1,5 @@
 // swagger-ui.js
-// version 2.0.5-MM
+// version 2.0.6-MM-SNAPSHOT
 $(function() {
 
 	// Helper function for vertically aligning DOM elements
@@ -317,7 +317,7 @@ function program8(depth0,data) {
 templates['operation'] = template(function (Handlebars,depth0,helpers,partials,data) {
   this.compilerInfo = [4,'>= 1.0.0'];
 helpers = this.merge(helpers, Handlebars.helpers); data = data || {};
-  var buffer = "", stack1, options, functionType="function", escapeExpression=this.escapeExpression, self=this, blockHelperMissing=helpers.blockHelperMissing;
+  var buffer = "", stack1, options, functionType="function", escapeExpression=this.escapeExpression, self=this, helperMissing=helpers.helperMissing, blockHelperMissing=helpers.blockHelperMissing;
 
 function program1(depth0,data) {
   
@@ -395,8 +395,18 @@ function program18(depth0,data) {
 
 function program20(depth0,data) {
   
+  var buffer = "", stack1, stack2, options;
+  buffer += "\n          <div class='sandbox_header'>\n            <input class='submit' name='commit' type='button' value='Try it out!' />\n            ";
+  options = {hash:{},inverse:self.noop,fn:self.program(21, program21, data),data:data};
+  stack2 = ((stack1 = helpers.isGetHtml || depth0.isGetHtml),stack1 ? stack1.call(depth0, depth0, options) : helperMissing.call(depth0, "isGetHtml", depth0, options));
+  if(stack2 || stack2 === 0) { buffer += stack2; }
+  buffer += "\n            <a href='#' class='response_hider' style='display:none'>Hide Response</a>\n            <img alt='Throbber' class='response_throbber' src='images/throbber.gif' style='display:none' />\n          </div>\n          ";
+  return buffer;
+  }
+function program21(depth0,data) {
   
-  return "\n          <div class='sandbox_header'>\n            <input class='submit' name='commit' type='button' value='Try it out!' />\n            <a href='#' class='response_hider' style='display:none'>Hide Response</a>\n            <img alt='Throbber' class='response_throbber' src='images/throbber.gif' style='display:none' />\n          </div>\n          ";
+  
+  return "\n            <input type=\"checkbox\" class=\"result_in_new_window\" >Open HTML response in a new window</input>\n            ";
   }
 
   buffer += "\n  <ul class='operations' >\n    <li class='";
@@ -1536,7 +1546,15 @@ helpers = this.merge(helpers, Handlebars.helpers); data = data || {};
       'mouseout .api-ic': 'mouseExit'
     };
 
-    OperationView.prototype.initialize = function() {};
+    OperationView.prototype.initialize = function() {
+      return Handlebars.registerHelper('isGetHtml', function(model, opts) {
+        if (model.produces.indexOf('text/html') > -1 && model.isGetMethod) {
+          return opts.fn(this);
+        } else {
+          return opts.inverse(this);
+        }
+      });
+    };
 
     OperationView.prototype.mouseEnter = function(e) {
       var elem, hgh, pos, scMaxX, scMaxY, scX, scY, wd, x, y;
@@ -1721,10 +1739,90 @@ helpers = this.merge(helpers, Handlebars.helpers); data = data || {};
         $(".response_throbber", $(this.el)).show();
         if (isFileUpload) {
           return this.handleFileUpload(map, form);
+        } else if (this.model.produces.indexOf('text/html') > -1 && this.model.isGetMethod) {
+          this.model.invocationUrl = this.removeUrlRelativeTuples(this.model.urlify(map, true));
+          return this.showResponseInIFrame(0, this.model.invocationUrl);
         } else {
           return this.model["do"](map, opts, this.showCompleteStatus, this.showErrorStatus, this);
         }
       }
+    };
+
+    OperationView.prototype.resizeIFrameCallback = function(event) {
+      var data, height, id;
+      if (!$(location).attr('href').match("^" + event.originalEvent.origin)) {
+        return false;
+      }
+      data = event.originalEvent.data.split("#");
+      id = data[0];
+      if (isNaN(data[1])) {
+        return false;
+      }
+      height = parseInt(data[1]) + 32;
+      $("#" + id).height(height);
+      $("#" + id).parent().parent().css("max-height", height * 1.5);
+      return true;
+    };
+
+    OperationView.prototype.removeUrlRelativeTuples = function(url) {
+      var absolute, i, pos, qty, relative, tuple, tuples, _i;
+      pos = url.indexOf('://');
+      if (pos !== -1) {
+        absolute = url.substring(0, url.indexOf('/', pos + 3));
+        relative = url.substring(url.indexOf('/', pos + 3));
+      } else {
+        absolute = '';
+        relative = url;
+      }
+      if (relative.indexOf('..') !== -1) {
+        tuples = relative.split('/');
+        relative = '';
+        qty = 0;
+        for (i = _i = tuples.length - 1; _i >= 0; i = _i += -1) {
+          tuple = tuples[i];
+          if (tuple === '..') {
+            qty++;
+          } else if (tuple !== '') {
+            if (qty > 0) {
+              qty--;
+            } else {
+              relative = '/' + tuple + relative;
+            }
+          }
+        }
+      }
+      return absolute + relative;
+    };
+
+    OperationView.prototype.getIFrameScript = function() {
+      return "var iframeHeight, iframeWin;" + "try {" + " iframeWin = this.contentWindow || this.contentDocument.parentWindow;" + " if (iframeWin.document.body) {" + "   iframeHeight = iframeWin.document.documentElement.scrollHeight || iframeWin.document.body.scrollHeight;" + " }" + "} catch(err) {" + " iframeHeight = self.innerHeight;" + "}" + "if (window.location.href != 'about:blank') parent.postMessage(this.id + '#' + iframeHeight, '" + window.location.href + "');";
+    };
+
+    OperationView.prototype.showResponseInIFrame = function(status, url) {
+      var checkbox, code, id, ifrm, pre;
+      checkbox = $(".result_in_new_window", $(this.el));
+      if (checkbox.is(':checked')) {
+        $(".response_throbber", $(this.el)).hide();
+        window.open(url, '_blank');
+        return this;
+      }
+      code = $('<code style="height: 100%"/>');
+      pre = $('<pre style="height: 100%" class="xml" />');
+      id = ("iframe_" + Math.random()).replace('.', 'x');
+      ifrm = $('<iframe id="' + id + '" height="100%" width="100%" onload="' + this.getIFrameScript() + '"></iframe>');
+      $(window).on('message', this.resizeIFrameCallback);
+      ifrm.attr('src', url);
+      code.append(ifrm);
+      pre.append(code);
+      $(".request_url", $(this.el)).html("<pre>" + url + "</pre>");
+      $(".response_code", $(this.el)).html("<pre>" + status + "</pre>");
+      $(".response_body", $(this.el)).html(pre);
+      $(".response_headers", $(this.el)).html("<pre></pre>");
+      $(".response", $(this.el)).slideDown();
+      $(".response_hider", $(this.el)).show();
+      $(".response_throbber", $(this.el)).hide();
+      hljs.highlightBlock($('.response_body', $(this.el))[0]);
+      return this;
     };
 
     OperationView.prototype.success = function(response, parent) {

@@ -11,6 +11,12 @@ class OperationView extends Backbone.View
   }
 
   initialize: ->
+    Handlebars.registerHelper 'isGetHtml',
+      (model, opts) ->
+        if model.produces.indexOf('text/html') > -1 && model.isGetMethod
+          opts.fn(@)
+        else
+          opts.inverse(@)
 
   mouseEnter: (e) ->
     elem = $(e.currentTarget.parentNode).find('#api_information_panel')
@@ -144,8 +150,85 @@ class OperationView extends Backbone.View
       $(".response_throbber", $(@el)).show()
       if isFileUpload
         @handleFileUpload map, form
+      else if @model.produces.indexOf('text/html') > -1 && @model.isGetMethod
+        @model.invocationUrl =  @removeUrlRelativeTuples(@model.urlify(map, true))
+        @showResponseInIFrame(0, @model.invocationUrl)
       else
         @model.do(map, opts, @showCompleteStatus, @showErrorStatus, @)
+
+  resizeIFrameCallback: (event) ->
+      # only accept messages from original domain
+      if(!$(location).attr('href').match("^" + event.originalEvent.origin))
+        return false
+      data = event.originalEvent.data.split("#")
+      id = data[0];
+      # only accept something which can be parsed as a number
+      if (isNaN(data[1]))
+        return false
+      height = parseInt(data[1]) + 32 # add some extra height to avoid scrollbar
+      $("#" + id).height(height)
+      $("#" + id).parent().parent().css("max-height", height * 1.5)
+      true
+
+  removeUrlRelativeTuples: (url) ->
+    pos = url.indexOf '://'
+    if pos != -1
+      absolute = url.substring(0, url.indexOf('/', pos + 3))
+      relative = url.substring(url.indexOf('/', pos + 3))
+    else
+      absolute = ''
+      relative = url
+    if relative.indexOf('..') != -1
+      tuples = relative.split '/'
+      relative = ''
+      qty = 0
+      for tuple, i in tuples by -1
+        if tuple == '..'
+          qty++
+        else if tuple != ''
+          if qty > 0
+            qty--
+          else
+            relative = '/' + tuple + relative
+    absolute + relative
+
+  getIFrameScript: () ->
+    "var iframeHeight, iframeWin;" + \
+    "try {" + \
+    " iframeWin = this.contentWindow || this.contentDocument.parentWindow;" + \
+    " if (iframeWin.document.body) {" + \
+    "   iframeHeight = iframeWin.document.documentElement.scrollHeight || iframeWin.document.body.scrollHeight;" + \
+    " }" + \
+    "} catch(err) {" + \
+    # cross origin fallback
+    " iframeHeight = self.innerHeight;" + \
+    "}" + \
+    "if (window.location.href != 'about:blank') parent.postMessage(this.id + '#' + iframeHeight, '" + window.location.href + "');"
+
+  showResponseInIFrame: (status, url) ->
+    checkbox = $(".result_in_new_window", $(@el));
+    if checkbox.is ':checked'
+      $(".response_throbber", $(@el)).hide()
+      window.open url, '_blank'
+      return @
+
+    code = $('<code style="height: 100%"/>')
+    pre = $('<pre style="height: 100%" class="xml" />')
+    id = ("iframe_" + Math.random()).replace('.','x')
+    ifrm = $('<iframe id="' + id + '" height="100%" width="100%" onload="' + @getIFrameScript() + '"></iframe>')
+    $(window).on('message', @resizeIFrameCallback)
+    ifrm.attr('src', url)
+    code.append ifrm
+    pre.append code
+    $(".request_url", $(@el)).html "<pre>" + url + "</pre>"
+    $(".response_code", $(@el)).html "<pre>" + status + "</pre>"
+    $(".response_body", $(@el)).html pre
+    $(".response_headers", $(@el)).html "<pre></pre>"
+    $(".response", $(@el)).slideDown()
+    $(".response_hider", $(@el)).show()
+    $(".response_throbber", $(@el)).hide()
+    hljs.highlightBlock($('.response_body', $(@el))[0])
+    @
 
   success: (response, parent) ->
     parent.showCompleteStatus response

@@ -82,6 +82,9 @@
           {{else}}
           <div class='sandbox_header'>
             <input class='submit' name='commit' type='button' value='Try it out!' />
+            {{#isGetHtml this}}
+            <input type="checkbox" class="result_in_new_window" >Open HTML response in a new window</input>
+            {{/isGetHtml}}
             <a href='#' class='response_hider' style='display:none'>Hide Response</a>
             <img alt='Throbber' class='response_throbber' src='images/throbber.gif' style='display:none' />
           </div>
