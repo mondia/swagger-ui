@@ -1,5 +1,5 @@
 // swagger-ui.js
-// version 2.0.6-MM
+// version 2.0.6-MM-SNAPSHOT
 $(function() {
 
 	// Helper function for vertically aligning DOM elements
@@ -1548,7 +1548,7 @@ helpers = this.merge(helpers, Handlebars.helpers); data = data || {};
 
     OperationView.prototype.initialize = function() {
       return Handlebars.registerHelper('isGetHtml', function(model, opts) {
-        if (model.produces.indexOf('text/html') > -1 && model.isGetMethod) {
+        if (model.isGetMethod && model.produces && model.produces.indexOf('text/html') > -1) {
           return opts.fn(this);
         } else {
           return opts.inverse(this);
@@ -1739,7 +1739,7 @@ helpers = this.merge(helpers, Handlebars.helpers); data = data || {};
         $(".response_throbber", $(this.el)).show();
         if (isFileUpload) {
           return this.handleFileUpload(map, form);
-        } else if (this.model.produces.indexOf('text/html') > -1 && this.model.isGetMethod) {
+        } else if (this.model.isGetMethod && this.model.produces && this.model.produces.indexOf('text/html') > -1) {
           this.model.invocationUrl = this.removeUrlRelativeTuples(this.model.urlify(map, true));
           return this.showResponseInIFrame(0, this.model.invocationUrl);
         } else {

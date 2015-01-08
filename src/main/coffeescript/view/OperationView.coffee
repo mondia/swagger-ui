@@ -13,7 +13,7 @@ class OperationView extends Backbone.View
   initialize: ->
     Handlebars.registerHelper 'isGetHtml',
       (model, opts) ->
-        if model.produces.indexOf('text/html') > -1 && model.isGetMethod
+        if model.isGetMethod && model.produces && model.produces.indexOf('text/html') > -1
           opts.fn(@)
         else
           opts.inverse(@)
@@ -150,7 +150,7 @@ class OperationView extends Backbone.View
       $(".response_throbber", $(@el)).show()
       if isFileUpload
         @handleFileUpload map, form
-      else if @model.produces.indexOf('text/html') > -1 && @model.isGetMethod
+      else if @model.isGetMethod && @model.produces && @model.produces.indexOf('text/html') > -1
         @model.invocationUrl =  @removeUrlRelativeTuples(@model.urlify(map, true))
         @showResponseInIFrame(0, @model.invocationUrl)
       else
